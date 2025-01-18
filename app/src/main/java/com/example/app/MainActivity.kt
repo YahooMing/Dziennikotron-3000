@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.*
 import androidx.room.*
@@ -170,10 +171,6 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
             userRepository.register(user)
         }
     }
-
-    fun setCurrentUser(user: User) {
-        userRepository.currentUser.value = user
-    }
 }
 
 // ViewModel Factory
@@ -213,7 +210,6 @@ fun LoginScreen(
 
     LaunchedEffect(viewModel.currentUser.collectAsState().value) {
         viewModel.currentUser.value?.let { user ->
-            viewModel.setCurrentUser(user)
             onLoginSuccess(user)
         }
     }
@@ -245,25 +241,57 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(userViewModel: UserViewModel, onNavigateToGrades: () -> Unit) {
-    val user by userViewModel.currentUser.collectAsState()
-
+fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        user?.let {
-            Text(text = "Witaj ${it.name}!", style = MaterialTheme.typography.headlineMedium)
-        }
+        Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
         Button(onClick = onNavigateToGrades) {
             Text("Zobacz Oceny")
+        }
+        Button(onClick = onNavigateToSubjects) {
+            Text("Zobacz Przedmioty")
         }
     }
 }
 
 @Composable
-fun GradesScreen(userId: Int, gradeDao: GradeDao) {
+fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int) {
+    val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
+    var selectedSubject by remember { mutableStateOf<Subject?>(null) }
+    var grade by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        subjects.forEach { subject ->
+            Text(text = subject.subjectName)
+            Button(onClick = { selectedSubject = subject }) {
+                Text("Dodaj Ocenę")
+            }
+        }
+
+        selectedSubject?.let {
+            TextField(value = grade, onValueChange = { grade = it }, label = { Text("Ocena") })
+            Button(onClick = {
+                val gradeValue = grade.toFloatOrNull()
+                if (gradeValue != null) {
+                    coroutineScope.launch {
+                        gradeDao.insertGrade(Grade(grade = gradeValue, userId = userId, subjectId = it.id))
+                    }
+                }
+            }) {
+                Text("Zapisz Ocenę")
+            }
+        }
+    }
+}
+@Composable
+fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao) {
     val grades by gradeDao.getGradesForStudent(userId).collectAsState(initial = emptyList())
+    val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
+
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         grades.forEach { grade ->
-            Text(text = "Przedmiot ID: ${grade.subjectId}, Ocena: ${grade.grade}")
+            val subjectName = subjects.find { it.id == grade.subjectId }?.subjectName ?: "Unknown"
+            Text(text = "PRZEDMIOT: $subjectName, OCENA: ${grade.grade}")
         }
     }
 }
@@ -272,7 +300,6 @@ fun GradesScreen(userId: Int, gradeDao: GradeDao) {
 fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
     val navController = rememberNavController()
     val database = AppDatabase.getDatabase(navController.context)
-    val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
 
     NavHost(navController = navController, startDestination = "login") {
         composable("login") {
@@ -289,11 +316,31 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
             )
         }
         composable("welcome/{userId}") { backStackEntry ->
-            WelcomeScreen(userViewModel = userViewModel, onNavigateToGrades = { navController.navigate("grades/${backStackEntry.arguments?.getString("userId")}") })
+            val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+            val userDao = database.userDao()
+            val user = remember { mutableStateOf(User()) }
+
+            LaunchedEffect(userId) {
+                userDao.login("", "").collect { fetchedUser ->
+                    if (fetchedUser != null && fetchedUser.id == userId) {
+                        user.value = fetchedUser
+                    }
+                }
+            }
+
+            WelcomeScreen(
+                user = user.value,
+                onNavigateToGrades = { navController.navigate("grades/$userId") },
+                onNavigateToSubjects = { navController.navigate("subjects/$userId") }
+            )
         }
         composable("grades/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
-            GradesScreen(userId = userId, gradeDao = database.gradeDao())
+            GradesScreen(userId = userId, gradeDao = database.gradeDao(), subjectDao = database.subjectDao())
+        }
+        composable("subjects/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+            SubjectListScreen(subjectDao = database.subjectDao(), gradeDao = database.gradeDao(), userId = userId)
         }
     }
 }
@@ -309,6 +356,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 AppNavigation(userViewModelFactory)
+            }
+
+            // Add subjects to the database
+            LaunchedEffect(Unit) {
+                database.subjectDao().insertSubject(Subject(subjectName = "Mathematics"))
+                database.subjectDao().insertSubject(Subject(subjectName = "Physics"))
+                database.subjectDao().insertSubject(Subject(subjectName = "Chemistry"))
             }
         }
     }
