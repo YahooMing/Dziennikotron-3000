@@ -170,6 +170,10 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
             userRepository.register(user)
         }
     }
+
+    fun setCurrentUser(user: User) {
+        userRepository.currentUser.value = user
+    }
 }
 
 // ViewModel Factory
@@ -209,6 +213,7 @@ fun LoginScreen(
 
     LaunchedEffect(viewModel.currentUser.collectAsState().value) {
         viewModel.currentUser.value?.let { user ->
+            viewModel.setCurrentUser(user)
             onLoginSuccess(user)
         }
     }
@@ -240,9 +245,13 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit) {
+fun WelcomeScreen(userViewModel: UserViewModel, onNavigateToGrades: () -> Unit) {
+    val user by userViewModel.currentUser.collectAsState()
+
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
+        user?.let {
+            Text(text = "Witaj ${it.name}!", style = MaterialTheme.typography.headlineMedium)
+        }
         Button(onClick = onNavigateToGrades) {
             Text("Zobacz Oceny")
         }
@@ -263,6 +272,7 @@ fun GradesScreen(userId: Int, gradeDao: GradeDao) {
 fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
     val navController = rememberNavController()
     val database = AppDatabase.getDatabase(navController.context)
+    val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
 
     NavHost(navController = navController, startDestination = "login") {
         composable("login") {
@@ -279,19 +289,7 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
             )
         }
         composable("welcome/{userId}") { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
-            val userDao = database.userDao()
-            val user = remember { mutableStateOf(User()) }
-
-            LaunchedEffect(userId) {
-                userDao.login("", "").collect { fetchedUser ->
-                    if (fetchedUser != null && fetchedUser.id == userId) {
-                        user.value = fetchedUser
-                    }
-                }
-            }
-
-            WelcomeScreen(user = user.value, onNavigateToGrades = { navController.navigate("grades/$userId") })
+            WelcomeScreen(userViewModel = userViewModel, onNavigateToGrades = { navController.navigate("grades/${backStackEntry.arguments?.getString("userId")}") })
         }
         composable("grades/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
