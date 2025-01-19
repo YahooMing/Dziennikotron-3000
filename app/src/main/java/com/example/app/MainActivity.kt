@@ -38,7 +38,9 @@ data class User(
 data class Subject(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val subjectName: String,
-    val maxStudents: Int = 30
+    val maxStudents: Int = 30,
+    val dayOfWeek: String,
+    val time: String
 )
 
 @Entity(
@@ -87,6 +89,13 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         database.execSQL("ALTER TABLE subjects ADD COLUMN maxStudents INTEGER NOT NULL DEFAULT 30")
     }
 }
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE subjects ADD COLUMN dayOfWeek TEXT NOT NULL DEFAULT ''")
+        database.execSQL("ALTER TABLE subjects ADD COLUMN time TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 // DAO Interfaces
 @Dao
 interface UserDao {
@@ -153,7 +162,7 @@ interface AcademicCalendarDao {
 
 @Database(
     entities = [User::class, Subject::class, StudentSubject::class, Grade::class, AcademicCalendar::class],
-    version = 2
+    version = 3
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
@@ -172,7 +181,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "app_database"
                 )
-                    .addMigrations(MIGRATION_1_2) // Add the migration here
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3) // Ensure all migrations are added
                     .build().also { instance = it }
             }
         }
@@ -254,6 +263,17 @@ class UserViewModelFactory(private val userRepository: UserRepository) : ViewMod
             return UserViewModel(userRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+@Composable
+fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel) {
+    val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
+
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        subjects.forEach { subject ->
+            Text(text = "Subject: ${subject.subjectName}, Day: ${subject.dayOfWeek}, Time: ${subject.time}")
+        }
     }
 }
 
@@ -353,7 +373,7 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit, onNavigateToSubjectRegistration: () -> Unit) {
+fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit, onNavigateToSubjectRegistration: () -> Unit, onNavigateToWeeklyCalendar: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
         Button(onClick = onNavigateToGrades) {
@@ -367,6 +387,9 @@ fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjec
         }
         Button(onClick = onNavigateToSubjectRegistration) {
             Text("Zarejestruj się na Przedmioty")
+        }
+        Button(onClick = onNavigateToWeeklyCalendar) {
+            Text("Zobacz Kalendarz Tygodniowy")
         }
     }
 }
@@ -450,7 +473,8 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
                     onNavigateToGrades = { navController.navigate("grades/$userId") },
                     onNavigateToSubjects = { navController.navigate("subjects/$userId") },
                     onNavigateToCalendar = { navController.navigate("calendar/$userId") },
-                    onNavigateToSubjectRegistration = { navController.navigate("subject_registration/$userId") }
+                    onNavigateToSubjectRegistration = { navController.navigate("subject_registration/$userId") },
+                    onNavigateToWeeklyCalendar = { navController.navigate("weekly_calendar/$userId") }
                 )
             }
         }
@@ -471,6 +495,11 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
             val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
             SubjectRegistrationScreen(userId = userId, userViewModel = userViewModel, subjectDao = database.subjectDao())
+        }
+        composable("weekly_calendar/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+            val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
+            WeeklyCalendarScreen(userId = userId, userViewModel = userViewModel)
         }
     }
 }
