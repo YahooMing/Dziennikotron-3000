@@ -106,8 +106,26 @@ interface GradeDao {
 }
 
 @Dao
+interface StudentSubjectDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStudentSubject(studentSubject: StudentSubject)
+
+    @Query("""
+        SELECT subjects.* FROM subjects
+        INNER JOIN student_subjects ON subjects.id = student_subjects.subjectId
+        WHERE student_subjects.userId = :userId
+    """)
+    fun getSubjectsForUser(userId: Int): Flow<List<Subject>>
+}
+@Dao
 interface AcademicCalendarDao {
-    @Query("SELECT * FROM academic_calendar WHERE subjectId IN (SELECT subjectId FROM student_subjects WHERE userId = :userId)")
+    @Query("""
+        SELECT * FROM academic_calendar
+        WHERE subjectId IN (
+            SELECT subjectId FROM student_subjects
+            WHERE userId = :userId
+        )
+    """)
     fun getCalendarForUser(userId: Int): Flow<List<AcademicCalendar>>
 
     @Query("SELECT * FROM academic_calendar")
@@ -127,6 +145,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun subjectDao(): SubjectDao
     abstract fun gradeDao(): GradeDao
     abstract fun academicCalendarDao(): AcademicCalendarDao
+    abstract fun studentSubjectDao(): StudentSubjectDao // Add this line
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -145,7 +164,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 class UserRepository(
     private val userDao: UserDao,
-    private val academicCalendarDao: AcademicCalendarDao
+    private val academicCalendarDao: AcademicCalendarDao,
+    private val studentSubjectDao: StudentSubjectDao,
+    private val subjectDao: SubjectDao
 ) {
     val currentUser = MutableStateFlow<User?>(null)
 
@@ -159,8 +180,12 @@ class UserRepository(
         userDao.register(user)
     }
 
-    fun getUserCalendar(userId: Int): Flow<List<AcademicCalendar>> {
-        return academicCalendarDao.getCalendarForUser(userId)
+    fun getUserSubjects(userId: Int): Flow<List<Subject>> {
+        return studentSubjectDao.getSubjectsForUser(userId)
+    }
+
+    suspend fun registerForSubject(userId: Int, subjectId: Int) {
+        studentSubjectDao.insertStudentSubject(StudentSubject(userId = userId, subjectId = subjectId))
     }
 }
 
@@ -180,8 +205,14 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         }
     }
 
-    fun getUserCalendar(userId: Int): Flow<List<AcademicCalendar>> {
-        return userRepository.getUserCalendar(userId)
+    fun getUserSubjects(userId: Int): Flow<List<Subject>> {
+        return userRepository.getUserSubjects(userId)
+    }
+
+    fun registerForSubject(userId: Int, subjectId: Int) {
+        viewModelScope.launch {
+            userRepository.registerForSubject(userId, subjectId)
+        }
     }
 }
 
@@ -198,11 +229,32 @@ class UserViewModelFactory(private val userRepository: UserRepository) : ViewMod
 
 @Composable
 fun CalendarScreen(userId: Int, userViewModel: UserViewModel) {
-    val calendarEntries by userViewModel.getUserCalendar(userId).collectAsState(initial = emptyList())
+    val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        calendarEntries.forEach { entry ->
-            Text(text = "Day: ${entry.dayOfWeek}, Time: ${entry.time}")
+        subjects.forEach { subject ->
+            Text(text = "Subject: ${subject.subjectName}")
+        }
+    }
+}
+
+@Composable
+fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subjectDao: SubjectDao) {
+    val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        subjects.forEach { subject ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(text = subject.subjectName)
+                Button(onClick = {
+                    coroutineScope.launch {
+                        userViewModel.registerForSubject(userId, subject.id)
+                    }
+                }) {
+                    Text("Register")
+                }
+            }
         }
     }
 }
@@ -263,7 +315,7 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit) {
+fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit, onNavigateToSubjectRegistration: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
         Button(onClick = onNavigateToGrades) {
@@ -274,6 +326,9 @@ fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjec
         }
         Button(onClick = onNavigateToCalendar) {
             Text("Zobacz Kalendarz")
+        }
+        Button(onClick = onNavigateToSubjectRegistration) {
+            Text("Zarejestruj się na Przedmioty")
         }
     }
 }
@@ -357,7 +412,8 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
                 user = user.value,
                 onNavigateToGrades = { navController.navigate("grades/$userId") },
                 onNavigateToSubjects = { navController.navigate("subjects/$userId") },
-                onNavigateToCalendar = { navController.navigate("calendar/$userId") }
+                onNavigateToCalendar = { navController.navigate("calendar/$userId") },
+                onNavigateToSubjectRegistration = { navController.navigate("subject_registration/$userId") }
             )
         }
         composable("grades/{userId}") { backStackEntry ->
@@ -373,12 +429,17 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
             val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
             CalendarScreen(userId = userId, userViewModel = userViewModel)
         }
+        composable("subject_registration/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+            val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
+            SubjectRegistrationScreen(userId = userId, userViewModel = userViewModel, subjectDao = database.subjectDao())
+        }
     }
 }
 
 class MainActivity : ComponentActivity() {
     private val database by lazy { AppDatabase.getDatabase(this) }
-    private val userRepository by lazy { UserRepository(database.userDao(), database.academicCalendarDao()) }
+    private val userRepository by lazy { UserRepository(database.userDao(), database.academicCalendarDao(), database.studentSubjectDao(), database.subjectDao()) }
     private val userViewModelFactory by lazy { UserViewModelFactory(userRepository) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -390,9 +451,9 @@ class MainActivity : ComponentActivity() {
 
             // Add subjects to the database
             LaunchedEffect(Unit) {
-                database.subjectDao().insertSubject(Subject(subjectName = "Mathematics"))
-                database.subjectDao().insertSubject(Subject(subjectName = "Physics"))
-                database.subjectDao().insertSubject(Subject(subjectName = "Chemistry"))
+                //database.subjectDao().insertSubject(Subject(subjectName = "Mathematics"))
+                //database.subjectDao().insertSubject(Subject(subjectName = "Physics"))
+                //database.subjectDao().insertSubject(Subject(subjectName = "Chemistry"))
             }
         }
     }
