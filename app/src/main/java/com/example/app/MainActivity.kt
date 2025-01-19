@@ -95,6 +95,9 @@ interface UserDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun register(user: User)
+
+    @Query("SELECT * FROM users WHERE id = :userId")
+    fun getUserById(userId: Int): Flow<User?>
 }
 
 @Dao
@@ -433,23 +436,23 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
         composable("welcome/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
             val userDao = database.userDao()
-            val user = remember { mutableStateOf(User()) }
+            val user = remember { mutableStateOf<User?>(null) }
 
             LaunchedEffect(userId) {
-                userDao.login("", "").collect { fetchedUser ->
-                    if (fetchedUser != null && fetchedUser.id == userId) {
-                        user.value = fetchedUser
-                    }
+                userDao.getUserById(userId).collect { fetchedUser ->
+                    user.value = fetchedUser
                 }
             }
 
-            WelcomeScreen(
-                user = user.value,
-                onNavigateToGrades = { navController.navigate("grades/$userId") },
-                onNavigateToSubjects = { navController.navigate("subjects/$userId") },
-                onNavigateToCalendar = { navController.navigate("calendar/$userId") },
-                onNavigateToSubjectRegistration = { navController.navigate("subject_registration/$userId") }
-            )
+            user.value?.let {
+                WelcomeScreen(
+                    user = it,
+                    onNavigateToGrades = { navController.navigate("grades/$userId") },
+                    onNavigateToSubjects = { navController.navigate("subjects/$userId") },
+                    onNavigateToCalendar = { navController.navigate("calendar/$userId") },
+                    onNavigateToSubjectRegistration = { navController.navigate("subject_registration/$userId") }
+                )
+            }
         }
         composable("grades/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
