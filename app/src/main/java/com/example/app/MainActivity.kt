@@ -14,12 +14,15 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.*
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.app.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 
 // Database Models
 @Entity(tableName = "users")
@@ -34,7 +37,8 @@ data class User(
 @Entity(tableName = "subjects")
 data class Subject(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val subjectName: String
+    val subjectName: String,
+    val maxStudents: Int = 30
 )
 
 @Entity(
@@ -77,6 +81,12 @@ data class AcademicCalendar(
     val subjectId: Int
 )
 
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Perform the necessary schema changes
+        database.execSQL("ALTER TABLE subjects ADD COLUMN maxStudents INTEGER NOT NULL DEFAULT 30")
+    }
+}
 // DAO Interfaces
 @Dao
 interface UserDao {
@@ -116,6 +126,9 @@ interface StudentSubjectDao {
         WHERE student_subjects.userId = :userId
     """)
     fun getSubjectsForUser(userId: Int): Flow<List<Subject>>
+
+    @Query("SELECT COUNT(*) FROM student_subjects WHERE subjectId = :subjectId")
+    fun getStudentCountForSubject(subjectId: Int): Flow<Int> // Dodaj tę metodę
 }
 @Dao
 interface AcademicCalendarDao {
@@ -135,17 +148,16 @@ interface AcademicCalendarDao {
     suspend fun insertCalendarEntry(calendar: AcademicCalendar)
 }
 
-// Database
 @Database(
     entities = [User::class, Subject::class, StudentSubject::class, Grade::class, AcademicCalendar::class],
-    version = 1
+    version = 2
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
     abstract fun subjectDao(): SubjectDao
     abstract fun gradeDao(): GradeDao
     abstract fun academicCalendarDao(): AcademicCalendarDao
-    abstract fun studentSubjectDao(): StudentSubjectDao // Add this line
+    abstract fun studentSubjectDao(): StudentSubjectDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -156,7 +168,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "app_database"
-                ).build().also { instance = it }
+                )
+                    .addMigrations(MIGRATION_1_2) // Add the migration here
+                    .build().also { instance = it }
             }
         }
     }
@@ -184,8 +198,17 @@ class UserRepository(
         return studentSubjectDao.getSubjectsForUser(userId)
     }
 
-    suspend fun registerForSubject(userId: Int, subjectId: Int) {
-        studentSubjectDao.insertStudentSubject(StudentSubject(userId = userId, subjectId = subjectId))
+    fun getStudentCountForSubject(subjectId: Int): Flow<Int> {
+        return studentSubjectDao.getStudentCountForSubject(subjectId)
+    }
+
+    suspend fun registerForSubject(userId: Int, subjectId: Int, maxStudents: Int) {
+        val studentCount = studentSubjectDao.getStudentCountForSubject(subjectId).first()
+        if (studentCount < maxStudents) {
+            studentSubjectDao.insertStudentSubject(StudentSubject(userId = userId, subjectId = subjectId))
+        } else {
+            throw IllegalStateException("Max number of students reached for this subject")
+        }
     }
 }
 
@@ -209,9 +232,13 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
         return userRepository.getUserSubjects(userId)
     }
 
-    fun registerForSubject(userId: Int, subjectId: Int) {
+    fun getStudentCountForSubject(subjectId: Int): Flow<Int> {
+        return userRepository.getStudentCountForSubject(subjectId)
+    }
+
+    fun registerForSubject(userId: Int, subjectId: Int, maxStudents: Int) {
         viewModelScope.launch {
-            userRepository.registerForSubject(userId, subjectId)
+            userRepository.registerForSubject(userId, subjectId, maxStudents)
         }
     }
 }
@@ -245,14 +272,22 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         subjects.forEach { subject ->
+            val studentCount by userViewModel.getStudentCountForSubject(subject.id).collectAsState(initial = 0)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(text = subject.subjectName)
-                Button(onClick = {
-                    coroutineScope.launch {
-                        userViewModel.registerForSubject(userId, subject.id)
-                    }
-                }) {
-                    Text("Register")
+                Text(text = "${subject.subjectName} (Zarejestrowanych: $studentCount/${subject.maxStudents})")
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            try {
+                                userViewModel.registerForSubject(userId, subject.id, subject.maxStudents)
+                            } catch (e: IllegalStateException) {
+                                // Obsłuż błąd, np. wyświetl komunikat
+                            }
+                        }
+                    },
+                    enabled = studentCount < subject.maxStudents
+                ) {
+                    Text("Zarejestruj się")
                 }
             }
         }
