@@ -107,6 +107,9 @@ interface GradeDao {
 
 @Dao
 interface AcademicCalendarDao {
+    @Query("SELECT * FROM academic_calendar WHERE subjectId IN (SELECT subjectId FROM student_subjects WHERE userId = :userId)")
+    fun getCalendarForUser(userId: Int): Flow<List<AcademicCalendar>>
+
     @Query("SELECT * FROM academic_calendar")
     fun getAllCalendarEntries(): Flow<List<AcademicCalendar>>
 
@@ -140,8 +143,10 @@ abstract class AppDatabase : RoomDatabase() {
     }
 }
 
-// Repository
-class UserRepository(private val userDao: UserDao) {
+class UserRepository(
+    private val userDao: UserDao,
+    private val academicCalendarDao: AcademicCalendarDao
+) {
     val currentUser = MutableStateFlow<User?>(null)
 
     suspend fun login(email: String, password: String) {
@@ -153,9 +158,12 @@ class UserRepository(private val userDao: UserDao) {
     suspend fun register(user: User) {
         userDao.register(user)
     }
+
+    fun getUserCalendar(userId: Int): Flow<List<AcademicCalendar>> {
+        return academicCalendarDao.getCalendarForUser(userId)
+    }
 }
 
-// ViewModel
 class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
     val currentUser: StateFlow<User?> = userRepository.currentUser
 
@@ -171,6 +179,10 @@ class UserViewModel(private val userRepository: UserRepository) : ViewModel() {
             userRepository.register(user)
         }
     }
+
+    fun getUserCalendar(userId: Int): Flow<List<AcademicCalendar>> {
+        return userRepository.getUserCalendar(userId)
+    }
 }
 
 // ViewModel Factory
@@ -184,6 +196,16 @@ class UserViewModelFactory(private val userRepository: UserRepository) : ViewMod
     }
 }
 
+@Composable
+fun CalendarScreen(userId: Int, userViewModel: UserViewModel) {
+    val calendarEntries by userViewModel.getUserCalendar(userId).collectAsState(initial = emptyList())
+
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        calendarEntries.forEach { entry ->
+            Text(text = "Day: ${entry.dayOfWeek}, Time: ${entry.time}")
+        }
+    }
+}
 // UI Components
 @Composable
 fun LoginScreen(
@@ -241,7 +263,7 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit) {
+fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
         Button(onClick = onNavigateToGrades) {
@@ -249,6 +271,9 @@ fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjec
         }
         Button(onClick = onNavigateToSubjects) {
             Text("Zobacz Przedmioty")
+        }
+        Button(onClick = onNavigateToCalendar) {
+            Text("Zobacz Kalendarz")
         }
     }
 }
@@ -331,7 +356,8 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
             WelcomeScreen(
                 user = user.value,
                 onNavigateToGrades = { navController.navigate("grades/$userId") },
-                onNavigateToSubjects = { navController.navigate("subjects/$userId") }
+                onNavigateToSubjects = { navController.navigate("subjects/$userId") },
+                onNavigateToCalendar = { navController.navigate("calendar/$userId") }
             )
         }
         composable("grades/{userId}") { backStackEntry ->
@@ -342,13 +368,17 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
             SubjectListScreen(subjectDao = database.subjectDao(), gradeDao = database.gradeDao(), userId = userId)
         }
+        composable("calendar/{userId}") { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
+            val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
+            CalendarScreen(userId = userId, userViewModel = userViewModel)
+        }
     }
 }
 
-// MainActivity
 class MainActivity : ComponentActivity() {
     private val database by lazy { AppDatabase.getDatabase(this) }
-    private val userRepository by lazy { UserRepository(database.userDao()) }
+    private val userRepository by lazy { UserRepository(database.userDao(), database.academicCalendarDao()) }
     private val userViewModelFactory by lazy { UserViewModelFactory(userRepository) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
