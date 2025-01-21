@@ -4,13 +4,16 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -278,7 +281,14 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
         entry.value.sortedBy { it.time }
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         groupedSubjects.forEach { (day, subjects) ->
             item {
                 Text(text = "$day:", style = MaterialTheme.typography.headlineMedium)
@@ -288,7 +298,8 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
             }
         }
         item {
-            Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { navController.navigate("welcome/$userId") }, modifier = Modifier.fillMaxWidth()) {
                 Text("WRÓĆ")
             }
         }
@@ -299,12 +310,20 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
 fun CalendarScreen(userId: Int, userViewModel: UserViewModel, navController: NavController) {
     val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         items(subjects) { subject ->
             Text(text = "Subject: ${subject.subjectName}")
         }
         item {
-            Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { navController.navigate("welcome/$userId") }, modifier = Modifier.fillMaxWidth()) {
                 Text("WRÓĆ")
             }
         }
@@ -316,7 +335,14 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         items(subjects) { subject ->
             val studentCount by userViewModel.getStudentCountForSubject(subject.id).collectAsState(initial = 0)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -338,7 +364,8 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
             }
         }
         item {
-            Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { navController.navigate("welcome/$userId") }, modifier = Modifier.fillMaxWidth()) {
                 Text("WRÓĆ")
             }
         }
@@ -401,25 +428,46 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit, onNavigateToSubjectRegistration: () -> Unit, onNavigateToWeeklyCalendar: () -> Unit, onLogout: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+fun WelcomeScreen(
+    user: User,
+    onNavigateToGrades: () -> Unit,
+    onNavigateToSubjects: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToSubjectRegistration: () -> Unit,
+    onNavigateToWeeklyCalendar: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
-        Button(onClick = onNavigateToGrades) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onNavigateToGrades, modifier = Modifier.fillMaxWidth()) {
             Text("Zobacz Oceny")
         }
-        Button(onClick = onNavigateToSubjects) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onNavigateToSubjects, modifier = Modifier.fillMaxWidth()) {
             Text("Zobacz Przedmioty")
         }
-        Button(onClick = onNavigateToCalendar) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onNavigateToCalendar, modifier = Modifier.fillMaxWidth()) {
             Text("Zobacz Kalendarz")
         }
-        Button(onClick = onNavigateToSubjectRegistration) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onNavigateToSubjectRegistration, modifier = Modifier.fillMaxWidth()) {
             Text("Zarejestruj się na Przedmioty")
         }
-        Button(onClick = onNavigateToWeeklyCalendar) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onNavigateToWeeklyCalendar, modifier = Modifier.fillMaxWidth()) {
             Text("Zobacz Kalendarz Tygodniowy")
         }
-        Button(onClick = onLogout) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
             Text("WYLOGUJ")
         }
     }
@@ -432,7 +480,14 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, n
     var grade by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         items(subjects) { subject ->
             Text(text = subject.subjectName)
             Button(onClick = { selectedSubject = subject }) {
@@ -442,7 +497,9 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, n
 
         selectedSubject?.let {
             item {
-                TextField(value = grade, onValueChange = { grade = it }, label = { Text("Ocena") })
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(value = grade, onValueChange = { grade = it }, label = { Text("Ocena") }, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
                 Button(onClick = {
                     val gradeValue = grade.toFloatOrNull()
                     if (gradeValue != null) {
@@ -450,30 +507,40 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, n
                             gradeDao.insertGrade(Grade(grade = gradeValue, userId = userId, subjectId = it.id))
                         }
                     }
-                }) {
+                }, modifier = Modifier.fillMaxWidth()) {
                     Text("Zapisz Ocenę")
                 }
             }
         }
         item {
-            Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { navController.navigate("welcome/$userId") }, modifier = Modifier.fillMaxWidth()) {
                 Text("WRÓĆ")
             }
         }
     }
 }
+
 @Composable
 fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao, navController: NavController) {
     val grades by gradeDao.getGradesForStudent(userId).collectAsState(initial = emptyList())
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         items(grades) { grade ->
             val subjectName = subjects.find { it.id == grade.subjectId }?.subjectName ?: "Unknown"
             Text(text = "PRZEDMIOT: $subjectName, OCENA: ${grade.grade}")
         }
         item {
-            Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { navController.navigate("welcome/$userId") }, modifier = Modifier.fillMaxWidth()) {
                 Text("WRÓĆ")
             }
         }
