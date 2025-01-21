@@ -274,9 +274,18 @@ class UserViewModelFactory(private val userRepository: UserRepository) : ViewMod
 fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navController: NavController) {
     val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
+    val groupedSubjects = subjects.groupBy { it.dayOfWeek }.mapValues { entry ->
+        entry.value.sortedBy { it.time }
+    }
+
     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        items(subjects) { subject ->
-            Text(text = "Subject: ${subject.subjectName}, Day: ${subject.dayOfWeek}, Time: ${subject.time}")
+        groupedSubjects.forEach { (day, subjects) ->
+            item {
+                Text(text = "$day:", style = MaterialTheme.typography.headlineMedium)
+            }
+            items(subjects) { subject ->
+                Text(text = "Przedmiot: ${subject.subjectName}, Godzina: ${subject.time}")
+            }
         }
         item {
             Button(onClick = { navController.navigate("welcome/$userId") }) {
