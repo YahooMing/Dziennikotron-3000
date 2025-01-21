@@ -518,9 +518,9 @@ class MainActivity : ComponentActivity() {
 
             // Add subjects to the database
             LaunchedEffect(Unit) {
-                //database.subjectDao().insertSubject(Subject(subjectName = "Mathematics"))
-                //database.subjectDao().insertSubject(Subject(subjectName = "Physics"))
-                //database.subjectDao().insertSubject(Subject(subjectName = "Chemistry"))
+                database.subjectDao().insertSubject(Subject(subjectName = "PUM", dayOfWeek = "Monday", time = "10:00 AM"))
+                database.subjectDao().insertSubject(Subject(subjectName = "Pythonowe królestwo", dayOfWeek = "Wednesday", time = "2:00 PM"))
+                database.subjectDao().insertSubject(Subject(subjectName = "Kanalizacja C++", dayOfWeek = "Friday", time = "11:00 AM"))
             }
         }
     }
