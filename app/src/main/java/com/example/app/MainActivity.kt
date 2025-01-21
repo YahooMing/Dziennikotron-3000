@@ -1,5 +1,6 @@
 package com.example.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +13,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
 import androidx.navigation.compose.*
 import androidx.room.*
 import androidx.room.migration.Migration
@@ -267,29 +269,35 @@ class UserViewModelFactory(private val userRepository: UserRepository) : ViewMod
 }
 
 @Composable
-fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel) {
+fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navController: NavController) {
     val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         subjects.forEach { subject ->
             Text(text = "Subject: ${subject.subjectName}, Day: ${subject.dayOfWeek}, Time: ${subject.time}")
         }
+        Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Text("WRÓĆ")
+        }
     }
 }
 
 @Composable
-fun CalendarScreen(userId: Int, userViewModel: UserViewModel) {
+fun CalendarScreen(userId: Int, userViewModel: UserViewModel, navController: NavController) {
     val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         subjects.forEach { subject ->
             Text(text = "Subject: ${subject.subjectName}")
         }
+        Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Text("WRÓĆ")
+        }
     }
 }
 
 @Composable
-fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subjectDao: SubjectDao) {
+fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subjectDao: SubjectDao, navController: NavController) {
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
@@ -313,6 +321,9 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
                     Text("Zarejestruj się")
                 }
             }
+        }
+        Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Text("WRÓĆ")
         }
     }
 }
@@ -373,7 +384,7 @@ fun RegisterScreen(
 }
 
 @Composable
-fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit, onNavigateToSubjectRegistration: () -> Unit, onNavigateToWeeklyCalendar: () -> Unit) {
+fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjects: () -> Unit, onNavigateToCalendar: () -> Unit, onNavigateToSubjectRegistration: () -> Unit, onNavigateToWeeklyCalendar: () -> Unit, onLogout: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
         Text(text = "Witaj ${user.name}!", style = MaterialTheme.typography.headlineMedium)
         Button(onClick = onNavigateToGrades) {
@@ -391,11 +402,14 @@ fun WelcomeScreen(user: User, onNavigateToGrades: () -> Unit, onNavigateToSubjec
         Button(onClick = onNavigateToWeeklyCalendar) {
             Text("Zobacz Kalendarz Tygodniowy")
         }
+        Button(onClick = onLogout) {
+            Text("WYLOGUJ")
+        }
     }
 }
 
 @Composable
-fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int) {
+fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, navController: NavController) {
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
     var selectedSubject by remember { mutableStateOf<Subject?>(null) }
     var grade by remember { mutableStateOf("") }
@@ -422,10 +436,13 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int) {
                 Text("Zapisz Ocenę")
             }
         }
+        Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Text("WRÓĆ")
+        }
     }
 }
 @Composable
-fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao) {
+fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao, navController: NavController) {
     val grades by gradeDao.getGradesForStudent(userId).collectAsState(initial = emptyList())
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
 
@@ -434,11 +451,14 @@ fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao) {
             val subjectName = subjects.find { it.id == grade.subjectId }?.subjectName ?: "Unknown"
             Text(text = "PRZEDMIOT: $subjectName, OCENA: ${grade.grade}")
         }
+        Button(onClick = { navController.navigate("welcome/$userId") }) {
+            Text("WRÓĆ")
+        }
     }
 }
 
 @Composable
-fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
+fun AppNavigation(userViewModelFactory: UserViewModelFactory, onLogout: () -> Unit) {
     val navController = rememberNavController()
     val database = AppDatabase.getDatabase(navController.context)
 
@@ -474,32 +494,33 @@ fun AppNavigation(userViewModelFactory: UserViewModelFactory) {
                     onNavigateToSubjects = { navController.navigate("subjects/$userId") },
                     onNavigateToCalendar = { navController.navigate("calendar/$userId") },
                     onNavigateToSubjectRegistration = { navController.navigate("subject_registration/$userId") },
-                    onNavigateToWeeklyCalendar = { navController.navigate("weekly_calendar/$userId") }
+                    onNavigateToWeeklyCalendar = { navController.navigate("weekly_calendar/$userId") },
+                    onLogout = onLogout
                 )
             }
         }
         composable("grades/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
-            GradesScreen(userId = userId, gradeDao = database.gradeDao(), subjectDao = database.subjectDao())
+            GradesScreen(userId = userId, gradeDao = database.gradeDao(), subjectDao = database.subjectDao(), navController = navController)
         }
         composable("subjects/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
-            SubjectListScreen(subjectDao = database.subjectDao(), gradeDao = database.gradeDao(), userId = userId)
+            SubjectListScreen(subjectDao = database.subjectDao(), gradeDao = database.gradeDao(), userId = userId, navController = navController)
         }
         composable("calendar/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
             val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
-            CalendarScreen(userId = userId, userViewModel = userViewModel)
+            CalendarScreen(userId = userId, userViewModel = userViewModel, navController = navController)
         }
         composable("subject_registration/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
             val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
-            SubjectRegistrationScreen(userId = userId, userViewModel = userViewModel, subjectDao = database.subjectDao())
+            SubjectRegistrationScreen(userId = userId, userViewModel = userViewModel, subjectDao = database.subjectDao(), navController = navController)
         }
         composable("weekly_calendar/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull() ?: 0
             val userViewModel: UserViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = userViewModelFactory)
-            WeeklyCalendarScreen(userId = userId, userViewModel = userViewModel)
+            WeeklyCalendarScreen(userId = userId, userViewModel = userViewModel, navController = navController)
         }
     }
 }
@@ -513,15 +534,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                AppNavigation(userViewModelFactory)
+                AppNavigation(userViewModelFactory, onLogout = { restartApp() })
             }
 
             // Add subjects to the database
             LaunchedEffect(Unit) {
-                database.subjectDao().insertSubject(Subject(subjectName = "PUM", dayOfWeek = "Monday", time = "10:00 AM"))
-                database.subjectDao().insertSubject(Subject(subjectName = "Pythonowe królestwo", dayOfWeek = "Wednesday", time = "2:00 PM"))
-                database.subjectDao().insertSubject(Subject(subjectName = "Kanalizacja C++", dayOfWeek = "Friday", time = "11:00 AM"))
+                //database.subjectDao().insertSubject(Subject(subjectName = "PUM", dayOfWeek = "Monday", time = "10:00 AM"))
+                //database.subjectDao().insertSubject(Subject(subjectName = "Pythonowe królestwo", dayOfWeek = "Wednesday", time = "2:00 PM"))
+                //database.subjectDao().insertSubject(Subject(subjectName = "Kanalizacja C++", dayOfWeek = "Friday", time = "11:00 AM"))
             }
         }
+    }
+
+    private fun restartApp() {
+        val intent = Intent(this, MainActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        startActivity(intent)
+        finish()
     }
 }
