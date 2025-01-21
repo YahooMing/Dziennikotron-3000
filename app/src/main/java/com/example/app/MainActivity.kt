@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -272,12 +274,14 @@ class UserViewModelFactory(private val userRepository: UserRepository) : ViewMod
 fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navController: NavController) {
     val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        subjects.forEach { subject ->
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        items(subjects) { subject ->
             Text(text = "Subject: ${subject.subjectName}, Day: ${subject.dayOfWeek}, Time: ${subject.time}")
         }
-        Button(onClick = { navController.navigate("welcome/$userId") }) {
-            Text("WRÓĆ")
+        item {
+            Button(onClick = { navController.navigate("welcome/$userId") }) {
+                Text("WRÓĆ")
+            }
         }
     }
 }
@@ -286,12 +290,14 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
 fun CalendarScreen(userId: Int, userViewModel: UserViewModel, navController: NavController) {
     val subjects by userViewModel.getUserSubjects(userId).collectAsState(initial = emptyList())
 
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        subjects.forEach { subject ->
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        items(subjects) { subject ->
             Text(text = "Subject: ${subject.subjectName}")
         }
-        Button(onClick = { navController.navigate("welcome/$userId") }) {
-            Text("WRÓĆ")
+        item {
+            Button(onClick = { navController.navigate("welcome/$userId") }) {
+                Text("WRÓĆ")
+            }
         }
     }
 }
@@ -301,8 +307,8 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        subjects.forEach { subject ->
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        items(subjects) { subject ->
             val studentCount by userViewModel.getStudentCountForSubject(subject.id).collectAsState(initial = 0)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(text = "${subject.subjectName} (Zarejestrowanych: $studentCount/${subject.maxStudents})")
@@ -322,8 +328,10 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
                 }
             }
         }
-        Button(onClick = { navController.navigate("welcome/$userId") }) {
-            Text("WRÓĆ")
+        item {
+            Button(onClick = { navController.navigate("welcome/$userId") }) {
+                Text("WRÓĆ")
+            }
         }
     }
 }
@@ -415,8 +423,8 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, n
     var grade by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        subjects.forEach { subject ->
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        items(subjects) { subject ->
             Text(text = subject.subjectName)
             Button(onClick = { selectedSubject = subject }) {
                 Text("Dodaj Ocenę")
@@ -424,20 +432,24 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, n
         }
 
         selectedSubject?.let {
-            TextField(value = grade, onValueChange = { grade = it }, label = { Text("Ocena") })
-            Button(onClick = {
-                val gradeValue = grade.toFloatOrNull()
-                if (gradeValue != null) {
-                    coroutineScope.launch {
-                        gradeDao.insertGrade(Grade(grade = gradeValue, userId = userId, subjectId = it.id))
+            item {
+                TextField(value = grade, onValueChange = { grade = it }, label = { Text("Ocena") })
+                Button(onClick = {
+                    val gradeValue = grade.toFloatOrNull()
+                    if (gradeValue != null) {
+                        coroutineScope.launch {
+                            gradeDao.insertGrade(Grade(grade = gradeValue, userId = userId, subjectId = it.id))
+                        }
                     }
+                }) {
+                    Text("Zapisz Ocenę")
                 }
-            }) {
-                Text("Zapisz Ocenę")
             }
         }
-        Button(onClick = { navController.navigate("welcome/$userId") }) {
-            Text("WRÓĆ")
+        item {
+            Button(onClick = { navController.navigate("welcome/$userId") }) {
+                Text("WRÓĆ")
+            }
         }
     }
 }
@@ -446,13 +458,15 @@ fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao, navCon
     val grades by gradeDao.getGradesForStudent(userId).collectAsState(initial = emptyList())
     val subjects by subjectDao.getAllSubjects().collectAsState(initial = emptyList())
 
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        grades.forEach { grade ->
+    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        items(grades) { grade ->
             val subjectName = subjects.find { it.id == grade.subjectId }?.subjectName ?: "Unknown"
             Text(text = "PRZEDMIOT: $subjectName, OCENA: ${grade.grade}")
         }
-        Button(onClick = { navController.navigate("welcome/$userId") }) {
-            Text("WRÓĆ")
+        item {
+            Button(onClick = { navController.navigate("welcome/$userId") }) {
+                Text("WRÓĆ")
+            }
         }
     }
 }
