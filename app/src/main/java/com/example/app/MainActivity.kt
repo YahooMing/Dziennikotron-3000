@@ -293,8 +293,11 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
             item {
                 Text(text = "$day:", style = MaterialTheme.typography.headlineMedium)
             }
-            items(subjects) { subject ->
-                Text(text = "Przedmiot: ${subject.subjectName}, Godzina: ${subject.time}")
+            subjects.forEach { subject ->
+                item {
+                    Text(text = "GODZINA: ${subject.time}")
+                    Text(text = "PRZEDMIOT: ${subject.subjectName}")
+                }
             }
         }
         item {
