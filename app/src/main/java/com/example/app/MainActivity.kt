@@ -286,7 +286,6 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
         groupedSubjects.forEach { (day, subjects) ->
@@ -309,7 +308,6 @@ fun WeeklyCalendarScreen(userId: Int, userViewModel: UserViewModel, navControlle
                         Column(
                             modifier = Modifier
                                 .padding(16.dp)
-                                .background(MaterialTheme.colorScheme.surface)
                         ) {
                             Text(
                                 text = "Godzina: ${subject.time}",
@@ -358,7 +356,6 @@ fun CalendarScreen(userId: Int, userViewModel: UserViewModel, navController: Nav
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
         items(subjects) { subject ->
@@ -371,7 +368,6 @@ fun CalendarScreen(userId: Int, userViewModel: UserViewModel, navController: Nav
                 Column(
                     modifier = Modifier
                         .padding(16.dp)
-                        .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Text(
                         text = subject.subjectName,
@@ -429,7 +425,6 @@ fun SubjectRegistrationScreen(userId: Int, userViewModel: UserViewModel, subject
                 Column(
                     modifier = Modifier
                         .padding(16.dp)
-                        .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Text(
                         text = subject.subjectName,
@@ -794,12 +789,10 @@ fun SubjectListScreen(subjectDao: SubjectDao, gradeDao: GradeDao, userId: Int, n
                 Column(
                     modifier = Modifier
                         .padding(16.dp)
-                        .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Text(
                         text = subject.subjectName,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
@@ -911,18 +904,17 @@ fun GradesScreen(userId: Int, gradeDao: GradeDao, subjectDao: SubjectDao, navCon
                 Column(
                     modifier = Modifier
                         .padding(16.dp)
-                        .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Text(
                         text = subjectName,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface ,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Ocena: ${grade.grade}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
